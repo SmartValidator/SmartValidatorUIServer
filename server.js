@@ -3,6 +3,14 @@ var app = express();
 var bodyParser = require('body-parser');
 var pg = require('pg');
 
+// Connect to pg.
+var conString = process.env.ELEPHANTSQL_URL || "postgres://andreas:5432@localhost/smart_validator_test_3";
+
+// Parse the request
+app.use(bodyParser.urlencoded({extended: true}));
+app.use(bodyParser.json());
+var port = process.env.PORT || 8080;
+
 // Add headers
 app.use(function (req, res, next) {
 
@@ -23,17 +31,11 @@ app.use(function (req, res, next) {
     next();
 });
 
-// Connect to pg.
-var conString = process.env.ELEPHANTSQL_URL || "postgres://andreas:5432@localhost/smart_validator_test_3";
-
-// Parse the request
-app.use(bodyParser.urlencoded({extended: true}));
-app.use(bodyParser.json());
-var port = process.env.PORT || 8080;
-
-// Create the routes.
+// Create the routing handler.
 var router = express.Router();
-router.get('/', function (req, res) {
+
+// Creates the routes.
+app.get('/v1/announcements', function (req, res) {
     var client = new pg.Client(conString);
     client.connect(function (err) {
         if (err) {
@@ -43,7 +45,6 @@ router.get('/', function (req, res) {
             if (err) {
                 return console.error('error running query', err);
             }
-
             res.json(
                 {
                     announcements: result.rows.map(function (obj) {
@@ -60,8 +61,39 @@ router.get('/', function (req, res) {
         });
     });
 });
-app.use('/api', router);
+
+app.get('/v1/validated_roas', function (req, res) {
+    var client = new pg.Client(conString);
+    client.connect(function (err) {
+        if (err) {
+            return console.error('could not connect to postgres', err);
+        }
+        client.query('SELECT * FROM validated_roas LIMIT 42;', function (err, result) {
+            if (err) {
+                return console.error('error running query', err);
+            }
+            res.json(
+                {
+                    validated_roas: result.rows.map(function (obj) {
+                        return {
+                            id: obj.id,
+                            asn: obj.asn,
+                            prefix: obj.prefix,
+                            max_length: obj.max_length,
+                            filtered: obj.filtered,
+                            whitelisted: obj.whitelisted,
+                            trust_anchor_id: obj.trust_anchor_id
+                        }
+                    }),
+                    total: 1
+                }
+            );
+            client.end();
+        });
+    });
+});
 
 // Start the server
 app.listen(port);
 console.log('SmartValidatorUI server is running on port ' + port);
+

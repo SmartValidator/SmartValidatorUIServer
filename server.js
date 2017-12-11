@@ -93,6 +93,35 @@ app.get('/v1/validated_roas', function (req, res) {
     });
 });
 
+// Returns the conflicts of the last n hours.
+app.get('/v1/conflicts/:last_hours', function (req, res) {
+    // TODO Sanitize req.params['last_hours']
+    var client = new pg.Client(conString);
+    client.connect(function (err) {
+        if (err) {
+            return console.error('could not connect to postgres', err);
+        }
+        client.query('SELECT announcements.id, announcements.asn, announcements.prefix FROM announcements JOIN verified_announcements ON (announcements.id = verified_announcements.announcement_id) WHERE verified_announcements.route_validity=-1 AND verified_announcements.updated_at < (NOW() - interval \'' + req.params['last_hours'] + ' hours\');', function (err, result) {
+            if (err) {
+                return console.error('error running query', err);
+            }
+            res.json(
+                {
+                    announcements: result.rows.map(function (obj) {
+                        return {
+                            id: obj.id,
+                            asn: obj.asn,
+                            prefix: obj.prefix
+                        }
+                    }),
+                    total: 1
+                }
+            );
+            client.end();
+        });
+    });
+});
+
 // Start the server
 app.listen(port);
 console.log('SmartValidatorUI server is running on port ' + port);
